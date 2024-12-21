@@ -3,6 +3,7 @@ import Product from '../database/models/Product'
 import { AuthRequest } from '../middleware/authMiddleware'
 import User from '../database/models/User'
 import Category from '../database/models/Category'
+import Review from '../database/models/Review'
 
 
 class ProductController{
@@ -86,6 +87,48 @@ class ProductController{
         }
     }
 
+    async updateProduct(req: AuthRequest, res: Response): Promise<void> {
+    const { id } = req.params;
+    const {
+      productName,
+      productDescription,
+      productTotalStockQty,
+      productPrice,
+      categoryId,
+    } = req.body;
+
+    const product = await Product.findOne({ where: { id } });
+    if (!product) {
+      res.status(404).json({
+        message: "No product with that id",
+      });
+      return;
+    }
+
+    const updatedData: any = {};
+
+    if (productName) updatedData.productName = productName;
+    if (productDescription) updatedData.productDescription = productDescription;
+    if (productTotalStockQty)
+      updatedData.productTotalStockQty = productTotalStockQty;
+    if (productPrice) updatedData.productPrice = productPrice;
+    if (categoryId) updatedData.categoryId = categoryId;
+
+    let fileName;
+    if (req?.file) {
+      // "http://localhost:3000/" + req?.file?.filename;
+      fileName =
+        "http://localhost:3000/" + req?.file?.filename;
+      updatedData.productImageUrl = fileName;
+    }
+
+    await Product.update(updatedData, { where: { id } });
+
+    res.status(200).json({
+      message: "Product updated successfully",
+    });
+    }
+
     async deleteProduct(req:Request,res:Response):Promise<void>{
         const {id} = req.params
         const data = await Product.findAll({
@@ -109,6 +152,82 @@ class ProductController{
         }
 
     }
+
+    async createProductReview(req: Request, res: Response): Promise<void> {
+        const { rating, reviewContent, reviewerName, userId } = req.body;
+        const { id } = req.params;
+        console.log(rating, reviewContent, reviewerName, userId);
+        try {
+          if (!rating || !reviewContent) {
+            res.status(400).json({
+              message: "Please provide rating and review ",
+            });
+            return;
+          }
+          if (!reviewerName || !userId) {
+            res.status(400).json({
+              message: "Please Login first!",
+            });
+            return;
+          }
+          const product = await Product.findOne({ where: { id } });
+    
+          if (!product) {
+            res.status(404).json({
+              message: "Product not found",
+            });
+            return;
+          }
+    
+          const alreadyReviewed = await Review.findOne({
+            where: {
+              productId: id,
+              userId: userId,
+            },
+          });
+    
+          if (alreadyReviewed) {
+            res.status(400).json({
+              message: "You have already reviewed this product",
+            });
+            return;
+          }
+    
+          await Review.create({
+            productId: id,
+            reviewerName,
+            rating: Number(rating),
+            reviewContent,
+            userId,
+          });
+    
+          const productReviews = await Review.findAll({
+            where: { productId: id },
+          });
+    
+          const numReviews = productReviews.length;
+    
+          const ratingSum = productReviews.reduce(
+            (acc, review) => acc + review.rating,
+            0
+          );
+          const avgRating = Math.floor(ratingSum / numReviews);
+    
+          await Product.update(
+            { rating: avgRating, numReviews },
+            { where: { id } }
+          );
+    
+          res.status(200).json({
+            message: "Review added successfully",
+          });
+        } catch (error) {
+          console.error(error);
+          res.status(500).json({
+            message: "Something went wrong. Please try again later.",
+          });
+        }
+      }
 
  } 
 

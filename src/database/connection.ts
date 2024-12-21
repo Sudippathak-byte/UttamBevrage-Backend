@@ -6,6 +6,7 @@ import Cart from './models/Cart'
 import Order from './models/Order'
 import OrderDetail from './models/OrderDetails'
 import Payment from './models/Payment'
+import Review from './models/Review'
 
 const sequelize = new Sequelize ({
     database : process.env.DB_NAME,
@@ -26,12 +27,12 @@ sequelize.authenticate()
 });
 
 
-sequelize.sync({force : false, alter:false}).then(()=>{
+sequelize.sync({force : false, alter: false}).then(()=>{
     console.log('Database synced successfully.');
 })
 
 
-//relationship
+// relationship
 User.hasMany(Product, {foreignKey : 'userId'})
 Product.belongsTo(User, {foreignKey: 'userId'})
 
@@ -62,5 +63,13 @@ Order.belongsTo(Payment,{foreignKey:'paymentId'})
 //order-user relation
 User.hasMany(Order,{foreignKey : 'userId'})
 Order.belongsTo(User,{foreignKey : 'userId'})
+
+//review -product relaation
+
+Product.hasMany(Review, { foreignKey: "productId" });
+Review.belongsTo(Product, { foreignKey: "productId" });
+//review-use relation
+User.hasMany(Review, { foreignKey: "userId" });
+Review.belongsTo(User, { foreignKey: "productId" });
 
 export default sequelize
