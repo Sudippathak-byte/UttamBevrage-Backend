@@ -1,107 +1,322 @@
-import {Request,Response} from 'express'
-import User from '../database/models/User'
-import bcrypt from 'bcrypt'
-import jwt from 'jsonwebtoken'
-import { Role } from '../middleware/authMiddleware'
-// import { AuthRequest } from '../middleware/authMiddleware'
+import { Request, Response } from "express";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import User from "../database/models/User";
+import { AuthRequest, Role } from "../middleware/authMiddleware";
 
+class AuthController {
+  public static async registerUser(req: Request, res: Response) {
+    const { email, username, password, bestSports, bestActor, idol } = req.body;
+  
+    if (!email || !username || !password || !bestSports || !bestActor || !idol) {
+      res.status(400).json({
+        message: "Please provide all required fields",
+      });
+      return;
+    }
+  
+    const existingUser = await User.findOne({ where: { email } });
+  
+    if (existingUser) {
+      res.status(400).json({
+        message: "User with this email already exists",
+      });
+      return;
+    }
+  
+    const hashedPassword = bcrypt.hashSync(password, 12);
+  
+    const newUser = await User.create({
+      email,
+      username,
+      password: hashedPassword,
+      role: "customer",
+      bestSports,
+      bestActor,
+      idol,
+    });
+  
+    const token = jwt.sign({ id: newUser.id }, process.env.SECRET_KEY as string, {
+      expiresIn: "1h",
+    });
+  
+    res.status(201).json({
+      message: "User registered successfully",
+      token,
+    });
+  }
+  
 
-class AuthController{
-    public static async registerUser(req:Request,res:Response):Promise<void>{
-    
-            
-        const {username,email,password,role} = req.body 
-        const userRole = role 
-        console.log(userRole)
-        // if (userRole !== Role.Admin && userRole !== Role.Customer){
-        //     res.status(400).json({message : "Invalid role"})
-        //     return
-        // }
+  public static async loginUser(req: Request, res: Response) {
+    const { email, password } = req.body;
+  
+    if (!email || !password) {
+      res.status(400).json({
+        message: "Please provide email and password",
+      });
+      return;
+    }
+  
+    const user = await User.findOne({ where: { email } });
+  
+    if (!user) {
+      res.status(404).json({
+        message: "User not found",
+      });
+      return;
+    }
+  
+    const isPasswordValid = bcrypt.compareSync(password, user.password);
+  
+    if (!isPasswordValid) {
+      res.status(403).json({
+        message: "Invalid password",
+      });
+      return;
+    }
+  
+    const token = jwt.sign({ id: user.id }, process.env.SECRET_KEY as string, {
+      expiresIn: "1h",
+    });
+  
+    res.status(200).json({
+      message: "User logged in successfully",
+      token,
+    });
+  }
+  
 
+  public static async requestPasswordReset(
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    const { email, bestSports, bestActor, idol } = req.body;
 
-
-        if(!username || !email || !password){
-            res.status(400).json({
-                message : "Please provide username,email,password"
-            })
-            return
-        }
-
-
-       await User.create({
-            username,
-            email,
-            password : bcrypt.hashSync(password,12),
-            role : role
-        })
-
-        res.status(200).json({
-            message : "User registered successfully"
-        })
-
-
+    if (!email || !bestSports || !bestActor || !idol) {
+      res.status(400).json({
+        message: "Please provide email and answers to all security questions",
+      });
+      return;
     }
 
-    public static async loginUser(req:Request,res:Response) : Promise<void>{
-        // user input 
-        const {email,password} = req.body 
-        if(!email || !password){
-            res.status(400).json({
-                message : "Please provide email,password"
-            })
-            return
-        }
-        // check whether user with above email exist or not 
-         
-        const [data] = await User.findAll({
-            where : {
-                email : email
-            }
-        })
-        if(!data){
-            res.status(404).json({
-                message : "No user with that email"
-            })
-            return
-        }
+    const user = await User.findOne({ where: { email } });
 
-        // check password now 
-        const isMatched  =  bcrypt.compareSync(password,data.password)
-        if(!isMatched){
-            res.status(403).json({
-                message : "Invalid password"
-            })
-            return
-        }
-
-        // generate token 
-       const token  =  jwt.sign({id:data.id},process.env.SECRET_KEY as string,{
-            expiresIn : "20d"
-        })
-        res.status(200).json({
-            message : "Logged in successfully",
-            data : token
-        })
-
-
+    if (!user) {
+      res.status(404).json({
+        message: "No user with that email",
+      });
+      return;
     }
 
-//     public static async fetchUsers(req:AuthRequest,res:Response):Promise<void>{
+    if (
+      user.bestSports !== bestSports ||
+      user.bestActor !== bestActor ||
+      user.idol !== idol
+    ) {
+      res.status(403).json({
+        message: "Security answers do not match",
+      });
+      return;
+    }
 
-//         const users = await User.findAll()
-//         if(users.length > 0 ){
-//             res.status(200).json({
-//                 message : "order fetched successfully",
-//                 data : users
-//             })
-//         }else{
-//             res.status(404).json({
-//                 message : "you haven't ordered anything yet..",
-//                 data : []
-//             })
-//         }
-//     }
+    // Generate token for resetting password
+    const token = jwt.sign({ id: user.id }, process.env.SECRET_KEY as string, {
+      expiresIn: "1h",
+    });
+
+    res.status(200).json({
+      message: "Security answers verified. Use this token to reset password.",
+      token,
+    });
+  }
+
+  public static async resetPassword(req: Request, res: Response): Promise<void> {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      res.status(400).json({
+        message: "Please provide token and new password",
+      });
+      return;
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.SECRET_KEY as string) as {
+        id: string;
+      };
+
+      const user = await User.findByPk(decoded.id);
+
+      if (!user) {
+        res.status(404).json({
+          message: "User not found",
+        });
+        return;
+      }
+
+      user.password = bcrypt.hashSync(newPassword, 12);
+      await user.save();
+
+      res.status(200).json({
+        message: "Password reset successfully",
+      });
+    } catch (error) {
+      res.status(400).json({
+        message: "Invalid or expired token",
+      });
+    }
+  }
+
+  public static async verifySecurityQuestions(req: Request, res: Response) {
+    const { email, bestSports, bestActor, idol } = req.body;
+
+    if (!email || !bestSports || !bestActor || !idol) {
+      res.status(400).json({
+        message: "Please provide email and answers to all security questions",
+      });
+      return;
+    }
+
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      res.status(404).json({
+        message: "No user with that email",
+      });
+      return;
+    }
+
+    if (
+      user.bestSports !== bestSports ||
+      user.bestActor !== bestActor ||
+      user.idol !== idol
+    ) {
+      res.status(403).json({
+        message: "Security answers do not match",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      message: "Security answers verified",
+    });
+  }
+
+  public static async deleteUser(req: AuthRequest, res: Response): Promise<void> {
+    const { id, email, bestSports, bestActor, idol } = req.body;
+
+    if (!id || !email || !bestSports || !bestActor || !idol) {
+      res.status(400).json({
+        message: "Please provide id, email, and answers to all security questions",
+      });
+      return;
+    }
+
+    const user = await User.findOne({ where: { id, email } });
+
+    if (!user) {
+      res.status(404).json({
+        message: "User not found",
+      });
+      return;
+    }
+
+    if (
+      user.bestSports !== bestSports ||
+      user.bestActor !== bestActor ||
+      user.idol !== idol
+    ) {
+      res.status(403).json({
+        message: "Security answers do not match",
+      });
+      return;
+    }
+
+    await user.destroy();
+
+    res.status(200).json({
+      message: "User deleted successfully",
+    });
+  }
+
+  public static async fetchUsers(req: AuthRequest, res: Response): Promise<void> {
+    const { email, bestSports, bestActor, idol } = req.body;
+
+    if (!email || !bestSports || !bestActor || !idol) {
+      res.status(400).json({
+        message: "Please provide email and answers to all security questions",
+      });
+      return;
+    }
+
+    const user = await User.findOne({ where: { email } });
+
+    if (!user) {
+      res.status(404).json({
+        message: "User not found",
+      });
+      return;
+    }
+
+    if (
+      user.bestSports !== bestSports ||
+      user.bestActor !== bestActor ||
+      user.idol !== idol
+    ) {
+      res.status(403).json({
+        message: "Security answers do not match",
+      });
+      return;
+    }
+
+    const users = await User.findAll();
+
+    res.status(200).json({
+      message: "Users fetched successfully",
+      data: users,
+    });
+  }
+
+  public static async updateUser(req: AuthRequest, res: Response): Promise<void> {
+    const { id, email, bestSports, bestActor, idol } = req.body;
+
+    if (!id || !email || !bestSports || !bestActor || !idol) {
+      res.status(400).json({
+        message: "Please provide id, email, and answers to all security questions",
+      });
+      return;
+    }
+
+    const user = await User.findOne({ where: { id, email } });
+
+    if (!user) {
+      res.status(404).json({
+        message: "User not found",
+      });
+      return;
+    }
+
+    if (
+      user.bestSports !== bestSports ||
+      user.bestActor !== bestActor ||
+      user.idol !== idol
+    ) {
+      res.status(403).json({
+        message: "Security answers do not match",
+      });
+      return;
+    }
+
+    // Update user details
+    Object.assign(user, req.body);
+
+    await user.save();
+
+    res.status(200).json({
+      message: "User updated successfully",
+      data: user,
+    });
+  }
 }
 
-
-export default AuthController
+export default AuthController;

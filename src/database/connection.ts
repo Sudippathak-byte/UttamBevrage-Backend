@@ -1,75 +1,77 @@
-import {Sequelize} from 'sequelize-typescript'
-import User from './models/User'
-import Product from './models/Product'
-import Category from './models/Category'
-import Cart from './models/Cart'
-import Order from './models/Order'
-import OrderDetail from './models/OrderDetails'
-import Payment from './models/Payment'
-import Review from './models/Review'
+import { Sequelize } from "sequelize-typescript";
+import * as dotenv from "dotenv";
+import User from "./models/User";
+import Category from "./models/Category";
+import Cart from "./models/Cart";
+import Order from "./models/Order";
+import Payment from "./models/Payment";
+import Product from "./models/Product";
+import OrderDetail from "./models/OrderDetails";
+import Review from "./models/Review";
 
-const sequelize = new Sequelize ({
-    database : process.env.DB_NAME,
-    dialect : 'mysql',
-    username : process.env.DB_USERNAME,
-    password : process.env.DB_PASSWORD,
-    host: process.env.DB_HOST,
-    port: Number(process.env.DB_PORT),
-    models : [__dirname + "/models"]
-})
+dotenv.config();
 
-sequelize.authenticate()
-.then(() => {
-    console.log('Connection has been established successfully.');
-    })
-    .catch(err => {
-        console.error('Unable to connect to the database:', err);
+const sequelize = new Sequelize({
+  database: process.env.DB_NAME,
+  dialect: "mysql",
+  username: process.env.DB_USERNAME,
+  password: process.env.DB_PASSWORD,
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT),
+  models: [User, Category, Cart, Order, Payment, Product, OrderDetail, Review],
+  logging: console.log,
 });
 
+sequelize
+  .authenticate()
+  .then(() => {
+    console.log("connected");
+  })
+  .catch((err) => {
+    console.log(err);
+  });
 
-sequelize.sync({force : false, alter: false}).then(()=>{
-    console.log('Database synced successfully.');
-})
+sequelize.sync({ alter: false, force: false }).then(() => {
+  console.log("Tables synced!");
+});
 
+// Relationships
+User.hasMany(Product, { foreignKey: "userId" });
+Product.belongsTo(User, { foreignKey: "userId" });
 
-// relationship
-User.hasMany(Product, {foreignKey : 'userId'})
-Product.belongsTo(User, {foreignKey: 'userId'})
+Category.hasOne(Product, { foreignKey: "categoryId" });
+Product.belongsTo(Category, { foreignKey: "categoryId" });
 
-Product.belongsTo(Category,{foreignKey: 'categoryId'})
-Category.hasOne(Product,{foreignKey : 'categoryId'})
+// product-cart relation
+User.hasMany(Cart, { foreignKey: "userId" });
+Cart.belongsTo(User, { foreignKey: "userId" });
 
+// user-cart relation
+Product.hasMany(Cart, { foreignKey: "productId" });
+Cart.belongsTo(Product, { foreignKey: "productId" });
 
-//product-cart relation
-User.hasMany(Cart,{foreignKey : 'userId'})
-Cart.belongsTo(User,{foreignKey :'userId'})
+// order-orderdetail relation
+Order.hasMany(OrderDetail, { foreignKey: "orderId" });
+OrderDetail.belongsTo(Order, { foreignKey: "orderId" });
 
-//user cart relation
-Product.hasMany(Cart,{foreignKey:'productId'})
-Cart.belongsTo(Product,{foreignKey:'productId'})
+// orderdetail-product relation
+Product.hasMany(OrderDetail, { foreignKey: "productId" });
+OrderDetail.belongsTo(Product, { foreignKey: "productId" });
 
-//order-orderdetails relation
-Order.hasMany(OrderDetail,{foreignKey:'orderId'})
-OrderDetail.belongsTo(Order,{foreignKey:'orderId'})
+// order-payment relation
+Payment.hasOne(Order, { foreignKey: "paymentId" });
+Order.belongsTo(Payment, { foreignKey: "paymentId" });
 
-// orderdetail-product relation 
-Product.hasMany(OrderDetail,{foreignKey:'productId'})
-OrderDetail.belongsTo(Product,{foreignKey:'productId'})
+// order-user relation
+User.hasMany(Order, { foreignKey: "userId" });
+Order.belongsTo(User, { foreignKey: "userId" });
 
-//order-payment relation
-Payment.hasOne(Order,{foreignKey:'paymentId'})
-Order.belongsTo(Payment,{foreignKey:'paymentId'})
-
-//order-user relation
-User.hasMany(Order,{foreignKey : 'userId'})
-Order.belongsTo(User,{foreignKey : 'userId'})
-
-//review -product relaation
-
+// review-product relation
 Product.hasMany(Review, { foreignKey: "productId" });
 Review.belongsTo(Product, { foreignKey: "productId" });
-//review-use relation
-User.hasMany(Review, { foreignKey: "userId" });
-Review.belongsTo(User, { foreignKey: "productId" });
 
-export default sequelize
+// review-user relation
+User.hasMany(Review, { foreignKey: "userId" });
+Review.belongsTo(User, { foreignKey: "userId" });
+
+export default sequelize;

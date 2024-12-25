@@ -1,48 +1,54 @@
-import {
-  Table,
-  Column,
-  Model,
-  DataType,
-} from 'sequelize-typescript'
+import { Table, Column, Model, DataType } from "sequelize-typescript";
 
 @Table({
-  tableName : 'users',
-  modelName : 'User',
-  timestamps : true
+  tableName: "users",
+  modelName: "User",
+  timestamps: true,
 })
-
-class User extends Model{
+class User extends Model {
   @Column({
-      primaryKey : true,
-      type : DataType.UUID,
-      defaultValue : DataType.UUIDV4
+    primaryKey: true,
+    type: DataType.UUID,
+    defaultValue: DataType.UUIDV4,
   })
-  declare id:string;
-
-  @Column({
-      type : DataType.STRING
-  })
-  declare username : string
+  declare id: string;
 
   @Column({
-      type : DataType.ENUM('customer','admin'),
-      defaultValue : 'customer'
+    type: DataType.STRING,
   })
-
-  declare role : string
+  declare username: string;
 
   @Column({
-      type : DataType.STRING
+    type: DataType.ENUM("customer", "admin"),
+    defaultValue: "customer",
   })
-  declare email:string 
+  declare role: string;
 
   @Column({
-      type : DataType.STRING
+    type: DataType.STRING,
   })
-  declare password:string
+  declare email: string;
 
-   
+  @Column({
+    type: DataType.STRING,
+  })
+  declare password: string;
+
+  // Security Questions
+  @Column({
+    type: DataType.STRING,
+  })
+  declare bestSports: string;
+
+  @Column({
+    type: DataType.STRING,
+  })
+  declare bestActor: string;
+
+  @Column({
+    type: DataType.STRING,
+  })
+  declare idol: string;
 }
 
-export default User
-
+export default User;

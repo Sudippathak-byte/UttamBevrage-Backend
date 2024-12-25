@@ -3,50 +3,58 @@ import {
     Column,
     Model,
     DataType,
-} from 'sequelize-typescript'
-
-@Table({
-    tableName : 'products',
-    modelName : 'Product',
-    timestamps : true
-})
-
-class Product extends Model{
+    AllowNull,
+  } from "sequelize-typescript";
+  
+  @Table({
+    tableName: "products",
+    modelName: "Product",
+    timestamps: true,
+  })
+  class Product extends Model {
     @Column({
-        primaryKey : true,
-        type : DataType.UUID,
-        defaultValue : DataType.UUIDV4
+      primaryKey: true,
+      type: DataType.UUID,
+      defaultValue: DataType.UUIDV4,
     })
-    declare id:string;
-
+    declare id: string;
+  
     @Column({
-        type : DataType.STRING,
-        allowNull : false
+      type: DataType.STRING,
+      allowNull: false,
     })
-    declare productName : string
-
+    declare productName: string;
+  
     @Column({
-        type : DataType.TEXT
+      type: DataType.TEXT,
     })
-    declare productDescription:string 
-
+    declare productDescription: string;
+  
     @Column({
-        type : DataType.INTEGER
+      type: DataType.INTEGER,
     })
-    declare productPrice:number
-
+    declare productPrice: number;
     @Column({
-        type : DataType.INTEGER
+      type: DataType.INTEGER,
     })
-    declare productTotalStockQty:number
-
+    declare productTotalStockQty: number;
+  
     @Column({
-        type : DataType.STRING
+      type: DataType.STRING,
     })
-    declare productImageUrl:string
-
-     
-}
-
-export default Product
-
+    declare productImageUrl: string;
+    @Column({
+      type: DataType.INTEGER,
+      defaultValue: 0,
+    })
+    declare rating: number;
+  
+    @Column({
+      type: DataType.INTEGER,
+      defaultValue: 0,
+    })
+    declare numReviews: number;
+  }
+  
+  export default Product;
+  
