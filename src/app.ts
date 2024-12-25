@@ -16,6 +16,7 @@ import orderRoute from "./routes/orderRoute";
 import chatRoute from "./routes/chatRoute"; // Import chat route
 import User from "./database/models/User";
 import Chat from "./database/models/Chat";
+import Product from "./database/models/Product";
 import { Op } from "sequelize";
 
 dotenv.config();
@@ -54,6 +55,56 @@ app.use("/admin/category", categoryRoute);
 app.use("/customer/cart", cartRoute);
 app.use("/order", orderRoute);
 app.use("/chat", chatRoute); // Add chat route
+
+// Product recommendation endpoint
+app.get("/recommendations/:userId", async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  try {
+    // Placeholder functions for user history and top-selling products
+    const getUserHistory = async (userId: string) => {
+      // Implement your logic here
+      return [];
+    };
+    const getTopSellingProducts = async () => {
+      // Implement your logic here
+      return [];
+    };
+
+    const userHistory = await getUserHistory(userId);
+    const topSellingProducts = await getTopSellingProducts();
+
+    // Combine and filter recommendations
+    const recommendations = [...userHistory, ...topSellingProducts];
+    res.status(200).json({ recommendations });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+// Advanced filtering endpoint
+app.get("/products", async (req: Request, res: Response) => {
+  const { sort, categoryId, priceRange } = req.query;
+  try {
+    const filters: any = {};
+
+    if (categoryId) {
+      filters.categoryId = categoryId;
+    }
+    if (priceRange) {
+      const [min, max] = (priceRange as string).split("-");
+      filters.productPrice = { [Op.between]: [Number(min), Number(max)] };
+    }
+
+    const products = await Product.findAll({
+      where: filters,
+      order: sort ? [[sort as string, 'ASC']] : [],
+    });
+
+    res.status(200).json({ products });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
 
 // Start the server
 const PORT = process.env.PORT || 3000;
