@@ -8,6 +8,7 @@ import Payment from "./models/Payment";
 import Product from "./models/Product";
 import OrderDetail from "./models/OrderDetails";
 import Review from "./models/Review";
+import Chat from "./models/Chat"; // Import Chat model
 
 dotenv.config();
 
@@ -18,7 +19,7 @@ const sequelize = new Sequelize({
   password: process.env.DB_PASSWORD,
   host: process.env.DB_HOST,
   port: Number(process.env.DB_PORT),
-  models: [User, Category, Cart, Order, Payment, Product, OrderDetail, Review],
+  models: [User, Category, Cart, Order, Payment, Product, OrderDetail, Review, Chat], // Added Chat model
   logging: console.log,
 });
 

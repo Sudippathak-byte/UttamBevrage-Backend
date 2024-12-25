@@ -3,6 +3,10 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../database/models/User";
 import { AuthRequest, Role } from "../middleware/authMiddleware";
+import Order from "../database/models/Order";
+import OrderDetail from "../database/models/OrderDetails";
+import Product from "../database/models/Product";
+import Payment from "../database/models/Payment";
 
 class AuthController {
   public static async registerUser(req: Request, res: Response) {
@@ -317,6 +321,40 @@ class AuthController {
       data: user,
     });
   }
+
+  public static async getUserDetails(req: AuthRequest, res: Response): Promise<void> {
+    const userId = req.params.id;
+    if (!userId) { 
+      res.status(400).json({
+      message: "Please provide a user ID"
+        , });
+      return;
+      }
+           
+      const user = await User.findByPk(userId, {
+      include: [
+      { 
+      model: Order,
+      include: [
+       { 
+         model: OrderDetail,
+         include: [Product],
+       },
+       {
+         model: Payment,
+       },
+     ],
+    },
+  ],
+});
+if (!user) {
+ res.status(404).json({
+  message: "User not found",
+  });
+   return; 
+    }
+   res.status(200).json({
+    message: "User fetched successfully", data: user, }); } 
 }
 
 export default AuthController;

@@ -26,6 +26,7 @@ router
 
 router
   .route("/user/:id")
+  .get(authMiddleware.isAuthenticated, authMiddleware.restrictTo(Role.Admin), errorHandler(AuthController.getUserDetails))
   .delete(authMiddleware.isAuthenticated, authMiddleware.restrictTo(Role.Admin), errorHandler(AuthController.deleteUser))
   .patch(authMiddleware.isAuthenticated, authMiddleware.restrictTo(Role.Admin), errorHandler(AuthController.updateUser));
 

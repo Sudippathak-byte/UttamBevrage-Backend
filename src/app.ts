@@ -3,7 +3,6 @@ import * as dotenv from "dotenv";
 import path from "path";
 import cors from "cors";
 import { Server } from "socket.io";
-import { promisify } from "util";
 import jwt from "jsonwebtoken";
 import cron from "node-cron";
 import "./database/connection";
@@ -14,21 +13,19 @@ import productRoute from "./routes/productRoute";
 import categoryRoute from "./routes/categoryRoute";
 import cartRoute from "./routes/cartRoute";
 import orderRoute from "./routes/orderRoute";
+import chatRoute from "./routes/chatRoute"; // Import chat route
 import User from "./database/models/User";
-import ChatMessage from "./database/models/ChatMessage";
-import chatRoute from "./routes/chatRoute";
+import Chat from "./database/models/Chat";
+import { Op } from "sequelize";
 
-// Load environment variables
 dotenv.config();
 
 const app: Application = express();
 
 // Middleware
-app.use(
-  cors({
-    origin: "*",
-  })
-);
+app.use(cors({
+  origin: "*",
+}));
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "uploads")));
@@ -56,7 +53,7 @@ app.use("/admin/product", productRoute);
 app.use("/admin/category", categoryRoute);
 app.use("/customer/cart", cartRoute);
 app.use("/order", orderRoute);
-app.use(chatRoute); 
+app.use("/chat", chatRoute); // Add chat route
 
 // Start the server
 const PORT = process.env.PORT || 3000;
@@ -65,8 +62,8 @@ const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-// WebSocket Server
-const io = new Server(server, {
+// Socket.IO Server
+export const io = new Server(server, {
   cors: {
     origin: "*",
   },
@@ -82,46 +79,93 @@ const addToOnlineUsers = (socketId: string, userId: string, role: string) => {
 io.on("connection", async (socket) => {
   console.log("A client connected");
 
-  const { token } = socket.handshake.auth;
-  console.log(token);
+  const token = socket.handshake.query.token as string; // Get token from query parameters
+  console.log("Received Token:", token);
 
   if (token) {
     try {
-      //@ts-ignore
-      const decoded = await promisify(jwt.verify)(token, process.env.SECRET_KEY);
-      //@ts-ignore
+      if (!process.env.SECRET_KEY) {
+        throw new Error("SECRET_KEY is not defined in environment variables");
+      }
+      const decoded = jwt.verify(token, process.env.SECRET_KEY) as jwt.JwtPayload & { id: string };
+      console.log("Decoded Token:", decoded);
       const doesUserExists = await User.findByPk(decoded.id);
+      console.log("User Exists:", doesUserExists);
 
       if (doesUserExists) {
         addToOnlineUsers(socket.id, doesUserExists.id, doesUserExists.role);
+        console.log("User added to online users:", onlineUsers);
+
+        // Handle real-time messaging
+        socket.on("sendMessage", async ({ senderId, receiverId, message }) => {
+          const sender = await User.findByPk(senderId);
+          const receiver = await User.findByPk(receiverId);
+
+          if (!sender || !receiver) {
+            console.error("Sender or receiver not found");
+            return;
+          }
+
+          if ((sender.role === "customer" && receiver.role !== "admin") || 
+              (sender.role === "admin" && receiver.role !== "customer")) {
+            console.error("Unauthorized chat attempt");
+            return;
+          }
+
+          io.to(receiverId).emit("receiveMessage", {
+            senderId,
+            message,
+          });
+
+          // Save message to database
+          await Chat.create({ senderId, receiverId, message });
+
+          // Emit notification event
+          io.to(receiverId).emit("notification", {
+            type: "new_message",
+            senderId,
+            message,
+          });
+
+          // Check if this is the first message from the customer to the admin
+          if (sender.role === "customer") {
+            const chatHistory = await Chat.findAll({
+              where: {
+                [Op.or]: [
+                  { senderId: senderId, receiverId: receiverId },
+                  { senderId: receiverId, receiverId: senderId },
+                ],
+              },
+            });
+
+            if (chatHistory.length === 1) { // This is the first message
+              const defaultAdminMessage = "Your query will be responded to soon. Thank you for your query.";
+              await Chat.create({ senderId: receiverId, receiverId: senderId, message: defaultAdminMessage });
+
+              // Emit default admin message to the customer
+              io.to(senderId).emit("receiveMessage", {
+                senderId: receiverId,
+                message: defaultAdminMessage,
+              });
+
+              // Emit notification event for default admin message
+              io.to(senderId).emit("notification", {
+                type: "new_message",
+                senderId: receiverId,
+                message: defaultAdminMessage,
+              });
+            }
+          }
+        });
+      } else {
+        console.error("User not found");
       }
     } catch (error) {
       console.error("Token verification failed:", error);
     }
+  } else {
+    console.error("Token is missing in the query parameters");
   }
-
-  socket.on("sendMessage", async (data) => {
-    const { userId, message, role } = data;
-
-    // Save the chat message to the database
-    await ChatMessage.create({ userId, message, role });
-
-    // Auto-response from admin for new customer messages
-    if (role === "customer") {
-      socket.emit("receiveMessage", {
-        userId: "admin",
-        message: "Hi there, just wait for a moment until the admin doesn't see your message.",
-        role: "admin",
-      });
-    }
-
-    // Emit the message to the other user
-    socket.broadcast.emit("receiveMessage", {
-      userId,
-      message,
-      role,
-    });
-  });
 
   socket.on("disconnect", () => {
     console.log("A client disconnected");
@@ -131,6 +175,13 @@ io.on("connection", async (socket) => {
     const findUser = onlineUsers.find((user: any) => user.userId == userId);
     if (findUser) {
       io.to(findUser.socketId).emit("statusUpdated", { status, orderId });
+
+      // Emit notification event for order status update
+      io.to(findUser.socketId).emit("notification", {
+        type: "order_status_update",
+        status,
+        orderId,
+      });
     }
   });
 
@@ -138,6 +189,13 @@ io.on("connection", async (socket) => {
     const findUser = onlineUsers.find((user: any) => user.userId == userId);
     if (findUser) {
       io.to(findUser.socketId).emit("paymentStatusUpdated", {
+        paymentStatus,
+        orderId,
+      });
+
+      // Emit notification event for payment status update
+      io.to(findUser.socketId).emit("notification", {
+        type: "payment_status_update",
         paymentStatus,
         orderId,
       });
