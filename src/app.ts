@@ -56,30 +56,6 @@ app.use("/customer/cart", cartRoute);
 app.use("/order", orderRoute);
 app.use("/chat", chatRoute); // Add chat route
 
-// Product recommendation endpoint
-app.get("/recommendations/:userId", async (req: Request, res: Response) => {
-  const { userId } = req.params;
-  try {
-    // Placeholder functions for user history and top-selling products
-    const getUserHistory = async (userId: string) => {
-      // Implement your logic here
-      return [];
-    };
-    const getTopSellingProducts = async () => {
-      // Implement your logic here
-      return [];
-    };
-
-    const userHistory = await getUserHistory(userId);
-    const topSellingProducts = await getTopSellingProducts();
-
-    // Combine and filter recommendations
-    const recommendations = [...userHistory, ...topSellingProducts];
-    res.status(200).json({ recommendations });
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
 
 // Advanced filtering endpoint
 app.get("/products", async (req: Request, res: Response) => {
